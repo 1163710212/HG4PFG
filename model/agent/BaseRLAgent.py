@@ -236,11 +236,9 @@ class BaseRLAgent():
         self.eval_history.update({f'{resp}_rate': [] for resp in self.env.response_types})
         self.current_sum_reward = torch.zeros(self.env.episode_batch_size).to(torch.float).to(self.device)
         self.user_pop_prefer = {}
-        self.user_pop_ratio = {}
         self.fair_weight = {}
         for i in range(40):
             self.user_pop_prefer[i] = []
-            self.user_pop_ratio[i] = []
             self.fair_weight[i] = []
         self.record_user_num = 0
         

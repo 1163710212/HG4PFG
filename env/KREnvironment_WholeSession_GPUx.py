@@ -226,7 +226,7 @@ class KREnvironment_WholeSession_GPUx(BaseRLEnvironment):
 
         # batch-wise monitor, 添加用户流行度偏好、上层智能体权重
         self.env_history = {'step': [0.], 'leave': [], 'temper': [],
-                            'coverage': [], 'ILD': [], 'pop_ratio': [], 'ad': []}
+                            'coverage': [], 'ILD': [], 'ad': []}
 
         return deepcopy(self.current_observation)
 
@@ -433,10 +433,9 @@ class KREnvironment_WholeSession_GPUx(BaseRLEnvironment):
         self.current_temper[AD >= 0.3] -= 1
 
         # 更新交互数据
-        pop_ratio = torch.mean(item_type).cpu().numpy()
-        AD = abs(pop_ratio - (1 - pop_ratio))
-        self.env_history['pop_ratio'].append(pop_ratio)
-        self.env_history['ad'].append(AD)
+        aggregate_popularity = torch.mean(item_type).cpu().numpy()
+        aggregate_ad = abs(aggregate_popularity - (1 - aggregate_popularity))
+        self.env_history['ad'].append(aggregate_ad)
 
         # temper update for leave model
         # 混合奖励大于等于2，不降低用户temper；小于等于0，只降低2；0-2降低mean_combined_reward-2

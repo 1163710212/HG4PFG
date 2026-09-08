@@ -214,11 +214,9 @@ class BaseOnPolicyRLAgent():
         self.current_fair_weight = torch.zeros((self.env.episode_batch_size, 30)).to(torch.float).to(self.device)
         self.current_user_pop_prefer = torch.zeros((self.env.episode_batch_size, 30)).to(torch.float).to(self.device)
         self.user_pop_prefer = {}
-        self.user_pop_ratio = {}
         self.fair_weight = {}
         for i in range(40):
             self.user_pop_prefer[i] = []
-            self.user_pop_ratio[i] = []
             self.fair_weight[i] = []
         self.record_user_num = 0
 
@@ -291,25 +289,19 @@ class BaseOnPolicyRLAgent():
             if has_fairness_output and episode_iter > 0: #10000:
                 current_step = current_step.cpu().numpy().reshape(-1)
                 user_pop_prefer = user_pop_prefer.cpu().numpy().reshape(-1).tolist()
-                popular_item_ratio = 1 - unpopular_item_ratio
-                popular_item_ratio = popular_item_ratio.cpu().numpy().reshape(-1).tolist()
                 fair_weight = fair_weight.cpu().numpy().reshape(-1).tolist()
                 for i in range(len(current_step)):
                     self.user_pop_prefer[current_step[i]].append(user_pop_prefer[i])
-                    self.user_pop_ratio[current_step[i]].append(popular_item_ratio[i])
                     self.fair_weight[current_step[i]].append(fair_weight[i])
                 self.record_user_num += len(current_step)
                 if self.record_user_num > 12800:
                     with open('./output/user_pop_prefer.txt', 'w') as file:
                         json.dump(self.user_pop_prefer, file, ensure_ascii=False)
-                    with open('./output/user_pop_ratio.txt', 'w') as file:
-                        json.dump(self.user_pop_ratio, file, ensure_ascii=False)
                     with open('./output/fair_weight.txt', 'w') as file:
                         json.dump(self.fair_weight, file, ensure_ascii=False)
                     self.record_user_num = 0
                     for i in range(40):
                         self.user_pop_prefer[i] = []
-                        self.user_pop_ratio[i] = []
                         self.fair_weight[i] = []
             
             # #
