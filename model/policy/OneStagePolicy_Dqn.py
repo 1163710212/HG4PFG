@@ -71,7 +71,7 @@ class OneStagePolicy_Dqn(OneStagePolicy):
         scores = self.q_layer(state)
         # top-k selection
         _, indices = torch.topk(scores, k=self.slate_size, dim=1)
-        # 是否进行探索
+        # Whether to explore.
         if do_explore:
             is_rand_choose = (torch.rand(indices.shape) < epsilon).to(self.device)
             indices_rand = torch.randint(0, self.item_num, indices.shape).to(self.device)
@@ -83,7 +83,7 @@ class OneStagePolicy_Dqn(OneStagePolicy):
                     'reg': reg}
         return out_dict
 
-    # 训练阶段使用
+    # Used during training.
     def evaluate(self, feed_dict):
         state = feed_dict['state'].view(-1, self.state_dim)
         # (B, L)

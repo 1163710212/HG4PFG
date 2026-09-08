@@ -171,7 +171,7 @@ if __name__ == '__main__':
 
     utils.set_random_seed(args.seed)
 
-    # 数据处理类
+    # Data reader class.
     reader = readerClass(args)
     print('data statistics:\n', reader.get_statistics())
 
@@ -191,7 +191,7 @@ if __name__ == '__main__':
     args.device = device
 
     # model and optimizer
-    # 加载用户反馈模型和优化器
+    # Load the user-feedback model and optimizer.
     model = modelClass(args, reader.get_statistics(), device)
     model = model.to(device)
     if args.init_checkpoint:
@@ -265,7 +265,7 @@ if __name__ == '__main__':
             step_behavior_loss = {fb: [] for fb in model.feedback_types}
             for i, batch_data in enumerate(train_loader):
                 optimizer.zero_grad()
-                # 把数据转换为tensor类型
+                # Convert data to tensors.
                 wrapped_batch = utils.wrap_batch(batch_data, device=device)
                 if epo == 1 and i == 0:
                     utils.show_batch(wrapped_batch)

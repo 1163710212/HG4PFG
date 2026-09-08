@@ -72,7 +72,7 @@ class HPPO(BaseOnPolicyRLAgent):
         args, env, actor, critic, buffer = input_args
         super().__init__(args, env, actor, buffer)
 
-        # 读取用户流行度偏好、物品类型
+        # Load user popularity preferences and item types.
         self.user_pop_ratios = torch.tensor(
             pd.read_csv(os.path.join(args.dataset_dir, 'user_pop_ratio.csv')).to_numpy()
         ).to(self.device)
@@ -321,12 +321,12 @@ class HPPO(BaseOnPolicyRLAgent):
 
                 # take gradient step
                 self.optimizer.zero_grad()
-                # 异常检测开启
+                # Enable anomaly detection.
                 # torch.autograd.set_detect_anomaly(True)
-                # 反向传播时检测是否有异常值，定位code
+                # Detect anomalous values during backpropagation and locate their source.
                 with torch.autograd.detect_anomaly():
                     loss.mean().backward()
-                # 梯度截断
+                # Clip gradients.
                 nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=10, norm_type=2)
                 nn.utils.clip_grad_norm_(self.critic.parameters(), max_norm=10, norm_type=2)
                 self.optimizer.step()
@@ -384,7 +384,7 @@ class HPPO(BaseOnPolicyRLAgent):
         is_train = policy_args[2]
         environment = policy_args[3] if len(policy_args) > 3 else self.env
         input_dict = {'observation': observation,
-                      # 默认候选集为整个物品集合
+                      # Use the full item set as the default candidate set.
                       'candidates': environment.get_candidate_info(observation),
                       'epsilon': epsilon,
                       'do_explore': do_explore,

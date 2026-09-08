@@ -55,7 +55,7 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
         self.h_action_std_init = args.action_std_init
         self.l_action_std_init = args.action_std_init
 
-        # 读取用户流行度偏好、物品类型
+        # Load user popularity preferences and item types.
         self.user_pop_ratios = torch.tensor(
             pd.read_csv(os.path.join(args.dataset_dir, 'user_pop_ratio.csv')).to_numpy()
         ).to(self.device)
@@ -102,18 +102,18 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
         batch_wise = feed_dict['batch_wise']
         B = l_state.shape[0]
 
-        # 上层智能体动作
+        # High-level agent action.
         h_action_mean = self.h_action_layer(h_state)
         h_cov_mat = torch.diag(self.h_action_var).unsqueeze(dim=0)
         dist = MultivariateNormal(h_action_mean, h_cov_mat)
         h_action = dist.sample() if do_explore else h_action_mean
         h_action_log_prob = dist.log_prob(h_action)
 
-        # 下层智能体动作
+        # Low-level agent action.
         l_state = torch.cat((l_state, h_action), dim=-1)
         #l_state = torch.cat((l_state, h_action), dim=-1)
         l_action_mean = self.l_action_layer(l_state)
-        # 上层权重分别作用在两组物品上
+        # Apply the high-level weights to the two item groups separately.
         t_h_action = nn.functional.relu(h_action)
         batch_item_types = self.item_types.expand(B, -1)
         l_action_mean = l_action_mean * batch_item_types * t_h_action[:, 0].reshape(-1, 1) \
@@ -129,7 +129,7 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
 
         reg = self.get_regularization(self.h_action_layer) + self.get_regularization(self.l_action_layer)
         #unpopular_item_ratio = (l_action_mean * (1 - self.item_types[:B])).sum(dim=1).squeeze()
-        # 获取实际长尾物品的曝光比例
+        # Obtain the actual exposure ratio of long-tail items.
         item_types = 1 - self.item_types[0].reshape(-1)
         unpopular_item_ratio = item_types[l_action.reshape(-1)].reshape(l_action.shape[0], -1).float().mean(dim=1)
         fair_weight = t_h_action[:, 1] #/ (t_h_action[:, 0] + 1e-5)
@@ -152,7 +152,7 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
         scores = linear_scorer(hyper_action, candidate_item_enc, item_dim)
         return scores
 
-    # 训练阶段使用
+    # Used during training.
     def evaluate_low(self, feed_dict):
         """Evaluate only the stored low-level slate for PPO ablation."""
         l_state = feed_dict['l_state'].view(-1, self.state_dim)
@@ -201,7 +201,7 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
         l_state = torch.cat((l_state, t_h_action.detach()), dim=-1)
         #l_state = torch.cat((l_state,  t_h_action.detach()), dim=-1)
         l_action_mean = self.l_action_layer(l_state)
-        # 上层权重分别作用在两组物品上
+        # Apply the high-level weights to the two item groups separately.
         l_action_mean = l_action_mean * self.item_types[:B] * t_h_action[:, 0].reshape(-1, 1) \
                  + l_action_mean * (1 - self.item_types[:B]) * t_h_action[:, 1].reshape(-1, 1)
         l_action_mean = nn.functional.relu(l_action_mean)
@@ -210,9 +210,9 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
         l_dist_entropy = dist.entropy()
         
         
-        # 状态增强
+        # Augment the state.
         aug_time = 10
-        # 上层智能体损失
+        # High-level agent loss.
         h_action_aug_mean = None
         neg_h_action_mean = self.h_action_layer(neg_h_state).detach()
         for _ in range(aug_time):
@@ -227,7 +227,7 @@ class OneStagePolicy_HRLPolicyDiscrete(OneStagePolicy):
         #print(neg_h_action_mean.shape, h_action_aug_mean.shape, l_action_mean.shape)
         aug_loss = -F.logsigmoid((neg_h_action_mean - h_action_mean) ** 2 - (h_action_mean - h_action_aug_mean) ** 2).mean()
 
-        # 下层智能体损失
+        # Low-level agent loss.
         l_action_aug_mean = None
         neg_l_state = torch.cat((neg_l_state, neg_h_action_mean.detach()), dim=-1)
         neg_l_action_mean = nn.functional.relu(self.l_action_layer(neg_l_state).detach())

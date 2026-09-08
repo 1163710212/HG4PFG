@@ -96,7 +96,7 @@ class Recogym_KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         self.rho = args.item_correlation
         self.single_response = args.single_response
 
-        # 读取用户流行度偏好、物品类型
+        # Load user popularity preferences and item types.
         path = f"/home/liuhao/xcj/KuaiSim-main/code/dataset/Kuairand_Pure/"
         self.user_pop_ratios = torch.tensor(pd.read_csv(path + 'user_pop_ratio.csv').to_numpy()).to(self.device)
         self.item_types = torch.tensor(pd.read_csv(path + 'item_types.csv').to_numpy()).to(self.device)

@@ -155,7 +155,7 @@ class KRMBUserResponse(BaseModel):
 
         # DNN scorer
         self.scorer_hidden_dims = args.scorer_hidden_dims
-        # 输出维度self.feedback_dim * args.enc_dim
+        # Output dimension: self.feedback_dim * args.enc_dim.
         self.scorer = DNN(3 * args.enc_dim, args.state_hidden_dims, self.feedback_dim * args.enc_dim,
                           dropout_rate=args.dropout_rate, do_batch_norm=True)
 
@@ -251,7 +251,7 @@ class KRMBUserResponse(BaseModel):
         # (B, max_H, enc_dim)
         feedback_emb = self.get_response_embedding(feed_dict, B)
         # (B, max_H, 2*enc_dim)
-        # 将用户交互物品信息和用户反馈信息拼接
+        # Concatenate interacted-item information with user feedback.
         seq_enc = torch.cat((seq_enc_feat, feedback_emb), dim=-1)
         # (B, max_H, 2*enc_dim)
         # PyTorch 1.12's eval/no-grad Transformer fast path misinterprets a
@@ -269,7 +269,7 @@ class KRMBUserResponse(BaseModel):
         hist_enc = output_seq[:, -1, :].view(B, 2 * self.enc_dim)
         # user features
         # (B, enc_dim),
-        # 将用户id和其它特征输入，进行编码
+        # Encode the user ID and other user features.
         user_enc, user_reg = self.get_user_encoding(feed_dict['user_id'],
                                                     {k[3:]: v for k, v in feed_dict.items() if k[:3] == 'uf_'}, B)
         # (B, enc_dim)
@@ -306,16 +306,16 @@ class KRMBUserResponse(BaseModel):
         - item_features: {'if_{feature_name}': (B,feature_dim) or (B,H,feature_dim)}
         """
         # (B, 1, i_latent_dim) or (B, H, i_latent_dim)
-        # 将item_id编码
+        # Encode item IDs.
         item_id_emb = self.iIDEmb(item_ids).view(B, -1, self.item_latent_dim)
-        # 推荐列表长度
+        # Recommendation-slate length.
         L = item_id_emb.shape[1]
         # [(B, 1, i_latent_dim)] * n_item_feature or [(B, H, i_latent_dim)] * n_item_feature
         item_feature_emb = [item_id_emb]
         for f, fEmbModule in self.iFeatureEmb.items():
-            # 获取各个物品特征的原始编码维度
+            # Obtain the original encoding dimension of each item feature.
             f_dim = self.item_feature_dims[f]
-            # 各个物品特征编码器EmbModule，将原始特征编码转化为统一的维度item_latent_dim
+            # EmbModule maps each raw item-feature encoding to item_latent_dim.
             item_feature_emb.append(fEmbModule(item_features[f].view(B, L, f_dim)).view(B, -1, self.item_latent_dim))
         # (B, 1, n_item_feature+1, i_latent_dim) or (B, H, n_item_feature+1, i_latent_dim)
         combined_item_emb = torch.cat(item_feature_emb, -1).view(B, L, -1, self.item_latent_dim)
@@ -430,6 +430,6 @@ class KRMBUserResponse(BaseModel):
         # (B, 1, n_feedback, enc_dim)
         behavior_attn = self.stateNorm(behavior_attn)
         # (B, -1, n_feedback)
-        # 编码维度点乘，取平均作为奖励值
+        # Average the dot products across encoding dimensions as the reward.
         point_scores = (behavior_attn * item_enc).mean(dim=-1).view(B, -1, self.feedback_dim)
         return point_scores, torch.mean(point_scores, dim=-1)

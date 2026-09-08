@@ -101,7 +101,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         self.episode_batch_size = args.episode_batch_size
         self.rho = args.item_correlation
         self.single_response = args.single_response
-        # 公平性退出机制，限制边界
+        # Boundary for the fairness-aware exit mechanism.
         self.ad_bound = args.ad_bound
         self.ad_temper_penalty = args.ad_temper_penalty
         if (
@@ -146,7 +146,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
 
         print("Load user sequence reader")
         reader, reader_args = self.get_reader(args.uirm_log_path, args.dataset)  # definition in base
-        # 数据读取器
+        # Data reader.
         self.reader = reader
         self.item_metadata_alignment = {
             'alignment_mode': 'legacy_file_order',
@@ -210,7 +210,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         self.candidate_iids = torch.tensor([reader.item_id_vocab[iid] for iid in reader.items]).to(self.device)
 
         # item meta: {'if_{feature_name}': (n_item, feature_dim)}
-        # 返回物品集特征的one-hot编码字典
+        # Return the one-hot encoding dictionaries for item-set features.
         # {item_1:{feature_1:[], feature_2:[]...}, item_2:{feature_1:[], feature_2:[]...}, ...}
         candidate_meta = [reader.get_item_meta_data(iid) for iid in reader.items]
         self.candidate_item_meta = {}
@@ -221,7 +221,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
                 .view(self.n_candidate, -1).to(self.device)
 
         # (n_item, item_enc_dim), groud truth encoding is implicit to RL agent
-        # 获取整个物品集的嵌入编码矩阵,[1, n_item, item_enc_dim]
+        # Obtain the embedding matrix for the full item set: [1, n_item, item_enc_dim].
         item_enc, _ = self.immediate_response_model.get_item_encoding(self.candidate_iids,
                                                                       {k[3:]: v for k, v in
                                                                        self.candidate_item_meta.items()}, 1)
@@ -230,7 +230,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
 
         # spaces
         self.gt_state_dim = self.immediate_response_model.state_dim
-        # 动作空间维度为推荐列表长度
+        # The action-space dimension equals the recommendation-slate length.
         self.action_dim = self.slate_size
         self.observation_space = self.reader.get_statistics()
         self.action_space = self.n_candidate
@@ -318,7 +318,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
                 num_workers=4,
             ))
         sample_info = next(self.batch_iter)
-        # 从历史数据中获取初始用户
+        # Obtain the initial users from historical data.
         # {'user_profile': {'user_id': (B,), 'uf_{feature_name}': (B, feature_dim)},
         # 'user_history':  {'history': (B, max_H),
         #                'history_if_{feature_name}': (B, max_H, feature_dim),
@@ -335,7 +335,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         self.current_pop_temper = torch.ones(self.episode_batch_size).to(self.device) * 5
         self.current_sum_reward = torch.zeros(self.episode_batch_size).to(self.device)
 
-        # batch-wise monitor, 添加用户流行度偏好、上层智能体权重
+        # Batch-wise monitor with user popularity preferences and high-level agent weights.
         self.env_history = {'step': [0.], 'leave': [], 'temper': [],
                             'coverage': [], 'ILD': [], 'ad': []}
 
@@ -479,13 +479,13 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
             action = step_dict['action']  # must be indices on candidate_ids
 
             # get user response
-            # 1.根据推荐模型产生的物品列表，返回用户反馈
+            # 1. Return user feedback for the item slate produced by the recommender.
             response_dict = self.get_response(step_dict)
             response = response_dict['immediate_response']
 
             # done mask and temper update
             # (B,)
-            # 2.根据用户反馈，判断其是否会离开
+            # 2. Determine from the feedback whether the user will leave.
             done_mask = self.get_leave_signal(None, action, response_dict)  # this will also change self.current_temper
             response_dict['done'] = done_mask
             response_dict['cum_cost'] = self.cum_cost
@@ -512,10 +512,10 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
 
                 if self.current_sample_head_in_batch + n_leave < self.episode_batch_size:
                     # reuse previous batch if there are sufficient samples for n_leave
-                    # 当前所采样的用户，剩余个数大于n_leave，使用下n_leave个用户
+                    # If enough sampled users remain, use the next n_leave users.
                     head = self.current_sample_head_in_batch
                     tail = self.current_sample_head_in_batch + n_leave
-                    # 将新用户的初始信息更新进来
+                    # Insert the new users' initial information.
                     for obs_key in ['user_profile', 'user_history']:
                         for k, v in self.sample_batch[obs_key].items():
                             self.current_observation[obs_key][k][done_mask] = v[head:tail]
@@ -524,7 +524,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
                     # sample new users to fill in the blank
                     sample_info = self.sample_new_batch_from_reader()
                     self.sample_batch = self.get_observation_from_batch(sample_info)
-                    # 将新用户的初始信息更新进来
+                    # Insert the new users' initial information.
                     for obs_key in ['user_profile', 'user_history']:
                         for k, v in self.sample_batch[obs_key].items():
                             self.current_observation[obs_key][k][done_mask] = v[:n_leave]
@@ -552,7 +552,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         """
         # actions (exposures), (B, slate_size), indices of self.candidate_iid
         action = step_dict['action']
-        # 计算一个batch_size的物品覆盖度
+        # Compute item coverage for one batch.
         coverage = len(torch.unique(action))
         B = self.episode_batch_size
 
@@ -563,7 +563,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         batch.update(self.current_observation['user_profile'])
         batch.update(self.current_observation['user_history'])
         batch.update({k: v[action] for k, v in self.candidate_item_meta.items()})
-        # 预测用户对推荐列表中各个物品的反馈
+        # Predict user feedback for each item in the recommendation slate.
         out_dict = self.immediate_response_model(batch)
         ########################################
 
@@ -573,17 +573,18 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         # (B, slate_size, item_dim)
         item_enc = self.candidate_item_encoding[action].view(B, self.slate_size, -1)
         item_enc_norm = F.normalize(item_enc, p=2.0, dim=-1)
-        # (B, slate_size)， 计算推荐列表内部物品间的相似度
+        # (B, slate_size), compute pairwise item similarity within the slate.
         corr_factor = self.get_intra_slate_similarity(item_enc_norm)
 
         # user response sampling
-        # (B, slate_size, n_feedback). behavior_scores已经做了概率化处理，这里为啥还要通过一个sigmoid？
-        # 由于训练时输出经过了两层sigmoid?
+        # (B, slate_size, n_feedback). behavior_scores are already probabilities;
+        # why apply another sigmoid here? Perhaps training applies sigmoid twice.
         #point_scores = torch.sigmoid(behavior_scores) - corr_factor.view(B, self.slate_size, 1) * self.rho
         point_scores = behavior_scores - corr_factor.view(B, self.slate_size, 1) * self.rho
         point_scores[point_scores < 0] = 0
 
-        # (B, slate_size, n_feedback). torch.bernoulli一个离散分布，有两个结果，即成功和失败，各个维度返回1/0
+        # (B, slate_size, n_feedback). torch.bernoulli samples a binary outcome,
+        # returning 1 or 0 in each dimension for success or failure.
         response = torch.bernoulli(point_scores).detach()
 
         return {'immediate_response': response,
@@ -593,7 +594,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
                 # estimates the dissimilarity between items in each recommended list, based on item embedding.
                 'ILD': 1 - torch.mean(corr_factor).item()}
 
-    # 在跨session推荐环境会用到
+    # Used by the cross-session recommendation environment.
     def get_ground_truth_user_state(self, profile, history):
         batch_data = {}
         batch_data.update(profile)
@@ -602,7 +603,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         gt_user_state = gt_state_dict['state'].view(self.episode_batch_size, 1, self.gt_state_dim)
         return gt_user_state
 
-    # 计算推荐列表内部物品间的相似度
+    # Compute pairwise item similarity within the recommendation slate.
     def get_intra_slate_similarity(self, action_item_encoding):
         """
         @input:
@@ -618,7 +619,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         point_similarity = torch.mean(pair_similarity, dim=-1)
         return point_similarity
 
-    # 根据用户反馈，根据用户temper，temper小于一，用户会退出
+    # Update user temper from feedback; the user leaves when temper falls below one.
     def get_leave_signal(self, user_state, action, response_dict):
         """
         User leave model maintains the user temper, and a user leaves when the temper drops below 1.
@@ -638,38 +639,39 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         # (B, )
         temper_boost = torch.mean(combined_reward, dim=1)
 
-        # # 获取用户id和推荐物品id
+        # # Obtain user IDs and recommended-item IDs.
         # user_id = self.current_observation['user_profile']['user_id'].reshape(-1)
         # item_id = action.reshape(-1)
         # item_type = self.item_types[item_id].reshape(action.shape[0], -1)
 
-        # 获取当前用户流行度偏好、推荐物品类型
+        # Obtain current user popularity preferences and recommended-item types.
         user_pop_prefer = self.current_observation['user_history']['user_pop_prefer']#.reshape(-1, 1)
         item_id = action.reshape(-1)
         item_type = self.item_types[item_id].reshape(action.shape[0], -1).float()
 
-        # 方式一：如果推荐列表中长尾物品比例和用户长尾偏好一致，增加更多的容忍度
+        # Method 1: increase tolerance when the slate's long-tail ratio matches the user's preference.
         # index = (torch.abs(torch.mean((item_type + 0.), dim=1) - user_pop_prefer) >= 0.3)
         # self.current_temper[index] -= 1
 
-        # 方式二：如果流行物品与非流行物品曝光比绝对误差大于0.3，用户退出  
+        # Method 2: the user leaves if the popular/non-popular exposure imbalance exceeds 0.3.
         # pop_ratio = torch.mean(item_type, dim=1).cpu().numpy()
         # AD = torch.abs(pop_ratio - (1 - pop_ratio))
         # if AD >= 0.4:
         #     self.current_temper = 0
         
-        #方式三：如果流行物品与非流行物品曝光比绝对误差大于阈值，用户容忍度下降  
+        # Method 3: reduce tolerance when the exposure imbalance exceeds the threshold.
         pop_ratio = torch.mean(item_type, dim=1)
         AD = torch.abs(pop_ratio - (1 - pop_ratio))
         #print(f'mush ad {torch.sum(AD >= 0.3)}')
         self.current_temper[AD >= self.ad_bound] -= self.ad_temper_penalty
         
-        # 更新交互数据
+        # Update interaction data.
         aggregate_popularity = torch.mean(item_type).cpu().numpy()
         aggregate_ad = abs(aggregate_popularity - (1 - aggregate_popularity))
         self.env_history['ad'].append(aggregate_ad)
         # temper update for leave model
-        # 混合奖励大于等于2，不降低用户temper；小于等于0，只降低2；0-2降低mean_combined_reward-2
+        # If the combined reward is at least 2, do not reduce temper; if it is at
+        # most 0, reduce temper by 2; otherwise use mean_combined_reward - 2.
         temper_update = temper_boost - 2
         temper_update[temper_update > 0] = 0
         temper_update[temper_update < -2] = -2
@@ -693,14 +695,14 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         # (B, slate_size), convert to encoded item id
         rec_list = self.candidate_iids[action]
 
-        # history update，更新历史物品id和历史长度
+        # Update historical item IDs and history length.
         old_history = self.current_observation['user_history']
         
-        # 更新用户流行度偏好
+        # Update the user's popularity preference.
         item_type = ((self.item_types[action]).float().squeeze() * response[:, :, 0])#.mean(dim=1)
         discount = math.pow(math.e, -1./16)
         user_pop_prefer = old_history['user_pop_prefer']
-        # 列表中用户有正反馈的物品数
+        # Number of slate items that received positive feedback.
         is_pos_click_num = (item_type.sum(dim=1).long() >= 1).int()#(item_type.sum(dim=1).long() >= 1).int()
         self.cum_cost += (torch.mean(item_type.float(), dim=1))
         self.current_cost = (torch.mean(item_type.float(), dim=1))
@@ -709,13 +711,13 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         # for i in range(item_type.shape[1]):
         #     deta = (1 - discount) / (discount - torch.pow(discount, L + 1e-5  + 1)) * item_type[:, i]
         #     user_pop_prefer = (user_pop_prefer + deta) * torch.pow(discount, item_type[:, i])
-        # s为常数值时使用
+        # Use when s is constant.
         user_pop_prefer = (user_pop_prefer + item_type.mean(dim=1) * (1 - discount) / (discount - torch.pow(discount, L + 1e-5  + 1))) * torch.pow(discount, is_pos_click_num)
         user_pop_prefer = user_pop_prefer * (1 - torch.pow(discount, L + 1e-5)) / (1 - torch.pow(discount, L + is_pos_click_num + 1e-5))
-        #s为inf时使用
+        # Use when s is infinite.
         # user_pop_prefer = (user_pop_prefer * L + item_type.mean(dim=1)) / (L + 1e-5 + is_pos_click_num)
 
-        # 更点击历史长度
+        # Update the click-history length.
         max_H = self.max_hist_len
         L += is_pos_click_num
         #L[L > max_H] = max_H
@@ -723,7 +725,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
         new_history = {'history': torch.cat((old_history['history'], rec_list), dim=1)[:, -max_H:],
                        'history_length': L, 'user_pop_prefer': user_pop_prefer}
 
-        # history item features，更新历史物品特征
+        # Update historical item features.
         for k, candidate_meta_features in self.candidate_item_meta.items():
             # (B, slate_size, feature_dim)
             meta_features = candidate_meta_features[action]
@@ -732,7 +734,7 @@ class KREnvironment_WholeSession_GPU(BaseRLEnvironment):
             new_history[f'history_{k}'] = torch.cat((previous_meta, meta_features), dim=1)[:, -max_H:, :].view(
                 self.episode_batch_size, -1)
 
-        # history item responses，更新历史反馈
+        # Update historical item responses.
         for i, R in enumerate(self.immediate_response_model.feedback_types):
             k = f'history_{R}'
             new_history[k] = torch.cat((old_history[k], response[:, :, i]), dim=1)[:, -max_H:]

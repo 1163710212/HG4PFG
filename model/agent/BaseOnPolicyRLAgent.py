@@ -225,9 +225,9 @@ class BaseOnPolicyRLAgent():
         self.env.stop()
 
     def get_report(self, smoothness=10):
-        # 环境记录的数据
+        # Data recorded by the environment.
         episode_report = self.env.get_report(smoothness)
-        # 智能体记录的数据
+        # Data recorded by the agent.
         train_report = {k: np.mean(v[-smoothness:]) for k, v in self.training_history.items()}
         train_report.update({k: np.mean(v[-smoothness:]) for k, v in self.eval_history.items()})
         return episode_report, train_report
@@ -285,7 +285,7 @@ class BaseOnPolicyRLAgent():
             self.current_sum_reward = self.current_sum_reward + R
             done_mask = user_feedback['done']
 
-            # # 统计不同时刻用户的流行度偏好
+            # # Track user popularity preferences at different steps.
             if has_fairness_output and episode_iter > 0: #10000:
                 current_step = current_step.cpu().numpy().reshape(-1)
                 user_pop_prefer = user_pop_prefer.cpu().numpy().reshape(-1).tolist()
@@ -309,7 +309,7 @@ class BaseOnPolicyRLAgent():
             # self.current_fair_weight[:, self.current_step] = fair_weight
             # self.current_step += 1
 
-            # 对已退出的用户的历史数据进行统计
+            # Aggregate historical data for users who have left.
             if torch.sum(done_mask) > 0:
                 self.eval_history['avg_total_reward'].append(self.current_sum_reward[done_mask].mean().item())
                 self.eval_history['max_total_reward'].append(self.current_sum_reward[done_mask].max().item())

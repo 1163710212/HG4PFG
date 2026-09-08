@@ -282,7 +282,7 @@ def show_batch(batch):
             print(f"{k}: {batch}")
 
 
-# 把数据转换为tensor类型
+# Convert data to tensors.
 def wrap_batch(batch, device):
     """
     Build feed_dict from batch data and move data to device

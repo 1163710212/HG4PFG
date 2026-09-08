@@ -118,7 +118,7 @@ class OneStagePolicy_OnPolicy(OneStagePolicy):
         scores = linear_scorer(hyper_action, candidate_item_enc, item_dim)
         return scores
 
-    # 训练阶段使用
+    # Used during training.
     def evaluate(self, feed_dict):
         state = feed_dict['state'].view(-1, self.state_dim)
         action = feed_dict['action'].view(-1, self.action_dim)

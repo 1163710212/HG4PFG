@@ -85,7 +85,7 @@ class RecKRMBSeqReader(BaseReader):
         if self.environment_split != 'all' and not 0. < self.train_environment_ratio < 1.:
             raise ValueError("train_environment_ratio must be in (0, 1) when environment_split is train/test")
 
-        # 读取用户流行度偏好、物品类型
+        # Load user popularity preferences and item types.
         dataset_dir = args.dataset_dir or os.path.dirname(os.path.abspath(args.train_file))
         self.dataset_dir = os.path.abspath(dataset_dir)
         self.user_pop_ratios = pd.read_csv(
@@ -132,7 +132,7 @@ class RecKRMBSeqReader(BaseReader):
         print("Load item meta data")
         item_meta_file = pd.read_csv(args.item_meta_file, sep=args.meta_file_sep)
 
-        # 获取原始物品id所对应数据的行索引
+        # Map raw item IDs to their corresponding data rows.
         self.item_meta = item_meta_file.set_index('video_id').to_dict('index')
         print("Load user meta data")
         user_meta_file = pd.read_csv(args.user_meta_file, sep=args.meta_file_sep)
@@ -160,7 +160,7 @@ class RecKRMBSeqReader(BaseReader):
                                       + [f'onehot_feat{fid}' for fid in [0, 1, 6, 9, 10, 11]]
 
         # meta feature vocabulary, {feature_name: {feature_value: one-hot/multi-hot vector}}
-        # 对获取用户及物品特征进行one-hot编码的词典
+        # Vocabularies for one-hot encoding user and item features.
         self.user_vocab = get_onehot_vocab(user_meta_file, self.selected_user_features)
         self.item_vocab = get_onehot_vocab(item_meta_file, self.selected_item_features)
         #self.item_vocab.update(get_multihot_vocab(item_meta_file, ['tag']))
@@ -168,14 +168,14 @@ class RecKRMBSeqReader(BaseReader):
                                   for f, v_dict in self.item_vocab.items()}
 
         # response meta
-        # 用户反馈信号，有七个
+        # Seven user-feedback signals.
         self.response_list = ['is_click']
         self.response_dim = len(self.response_list)
         self.padding_response = {resp: 0. for i, resp in enumerate(self.response_list)}
         self.response_neg_sample_rate = self.get_response_weights()
 
         # {'train': [row_id], 'val': [row_id], 'test': [row_id]}
-        # 划分训练、验证、测试集
+        # Split the training, validation, and test sets.
         self.data = self._sequence_holdout(args)
 
     def _split_environment_data(self, full_user_history):
@@ -215,7 +215,7 @@ class RecKRMBSeqReader(BaseReader):
         )
         return selected_rows, split_history
 
-    # 划分训练、验证、测试集
+    # Split the training, validation, and test sets.
     def _sequence_holdout(self, args):
         """
         Holdout validation and test set from log_data
@@ -235,17 +235,17 @@ class RecKRMBSeqReader(BaseReader):
             data['train'].append(user_rows[:n_train])
             data['val'].append(user_rows[n_train:val_end])
             data['test'].append(user_rows[val_end:])
-        # 将data[*]穿成一个一维列表
+        # Flatten each data split into a one-dimensional array.
         for k, v in data.items():
             data[k] = np.concatenate(v).astype(np.int64) if v else np.asarray([], dtype=np.int64)
         return data
 
-    # 获取各种反馈的权重
+    # Compute weights for each feedback type.
     def get_response_weights(self):
         ratio = {}
         for f in self.response_list:
             counts = self.log_data.loc[self.environment_indices, f].value_counts()
-            # 正样本数除以负样本数
+            # Divide the number of positive samples by the number of negatives.
             n_positive = int(counts.get(1, 0))
             n_negative = int(counts.get(0, 0))
             if n_positive == 0 or n_negative == 0:
@@ -293,7 +293,7 @@ class RecKRMBSeqReader(BaseReader):
             ],
         }
 
-        # 获取各种反馈损失的权重
+        # Compute the loss weight for each feedback type.
         for _, f in enumerate(self.response_list):
             record[f] = row[f]
         loss_weight = np.array([1. if record[f] == 1 else -self.response_neg_sample_rate[f]
@@ -321,7 +321,7 @@ class RecKRMBSeqReader(BaseReader):
 
         return record
 
-    # 返回用户特征的one-hot编码
+    # Return the one-hot encoding of user features.
     def get_user_meta_data(self, user_id):
         """
         @input:
@@ -334,7 +334,7 @@ class RecKRMBSeqReader(BaseReader):
                             for f in self.selected_user_features}
         return user_meta_record
 
-    # 返回物品特征的one-hot编码
+    # Return the one-hot encoding of item features.
     def get_item_meta_data(self, item_id):
         """
         @input:
@@ -380,7 +380,7 @@ class RecKRMBSeqReader(BaseReader):
             meta_list = [self.get_item_meta_data(iid) for iid in H['video_id']]
             # history item meta features: {if_{feature_name}: }
             hist_meta = {}
-            # 用户历史交互数不足max_hist_seq_len，需要进行填充
+            # Pad user histories shorter than max_hist_seq_len.
             for f in self.selected_item_features:
                 padding = [self.padding_item_meta[f] for i in range(self.max_hist_seq_len - L)]
                 real_hist = [v_dict[f'if_{f}'] for v_dict in meta_list]
@@ -392,7 +392,7 @@ class RecKRMBSeqReader(BaseReader):
                 padding = np.array([self.padding_response[resp]] * (self.max_hist_seq_len - L))
                 real_resp = np.array(H[resp])
                 history_response[resp] = np.concatenate([padding, real_resp], axis=0)
-            # 计算用户当前流行度偏好 (agent训练时需要计算)
+            # Compute the user's current popularity preference for agent training.
             H = H[H['is_click'] > 0]
             item_ids = [self.item_id_vocab[iid] for iid in H['video_id']]
             discount = math.pow(math.e, -1./16)
@@ -401,7 +401,7 @@ class RecKRMBSeqReader(BaseReader):
                 user_pop_prefer = user_pop_prefer * discount
             L = len(item_ids)
             if L > 0:
-                # 只获取用户过去点击过的物品数量
+                # Count only items that the user clicked previously.
                 user_pop_prefer = user_pop_prefer * (1 - discount) / (discount - math.pow(discount, L + 1))
                 #user_pop_prefer = user_pop_prefer / L
         return history, L, hist_meta, history_response, user_pop_prefer
@@ -420,7 +420,7 @@ class RecKRMBSeqReader(BaseReader):
             ).astype(np.float32, copy=False)
         return catalog
 
-    # 返回所使用数据的统计信息
+    # Return statistics for the data in use.
     def get_statistics(self):
         """
         - n_user
@@ -438,7 +438,7 @@ class RecKRMBSeqReader(BaseReader):
         stats["data_size"] = [len(self.data['train']), len(self.data['val']), len(self.data['test'])]
         stats["n_user"] = len(self.users)
         stats["n_item"] = len(self.items)
-        # 用户状态编码时，使用的最大历史数据长度
+        # Maximum history length used to encode the user state.
         stats["max_seq_len"] = self.max_hist_seq_len
         stats["user_features"] = self.selected_user_features
         stats["user_feature_dims"] = {f: len(list(v_dict.values())[0]) for f, v_dict in self.user_vocab.items()}

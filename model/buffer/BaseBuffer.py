@@ -30,7 +30,7 @@ class BaseBuffer():
         self.current_buffer_size = 0
         self.n_stream_record = 0
 
-    # 根据仿真环境初始化buffer
+    # Initialize the buffer from the simulation environment.
     def reset(self, *reset_args):
         """
         @output:

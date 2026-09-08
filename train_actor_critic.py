@@ -17,7 +17,7 @@ from env import KREnvironment_WholeSession_GPU, KREnvironment_WholeSession_GPUx
 import utils
 
 
-# 设置 CUDA_LAUNCH_BLOCKING 为 1
+# Set CUDA_LAUNCH_BLOCKING to 1.
 # os.environ["CUDA_LAUNCH_BLOCKING"] = "1"
 
 

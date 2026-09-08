@@ -110,7 +110,7 @@ class DDPG(BaseRLAgent):
         # (B, )
         current_Q = current_critic_output['q']
 
-        # Compute the target Q value, 计算下一个状态所采取的动作时不进行探索
+        # Compute the target Q value without exploration in the next state.
         next_policy_output = self.apply_policy(next_observation, self.actor_target,
                                                0., False, is_train)
         target_critic_output = self.apply_critic(next_observation, next_policy_output, self.critic_target)
@@ -130,7 +130,7 @@ class DDPG(BaseRLAgent):
             critic_loss.backward()
             self.critic_optimizer.step()
 
-        # Compute actor loss，训练阶段计算当前状态所采取的动作时一般需要探索
+        # Compute actor loss; action selection in the current state generally explores during training.
         policy_output = self.apply_policy(observation, self.actor,
                                           0., self.do_explore_in_train, is_train)
         critic_output = self.apply_critic(observation, policy_output, self.critic)
@@ -186,7 +186,7 @@ class DDPG(BaseRLAgent):
         do_explore = policy_args[1]
         is_train = policy_args[2]
         input_dict = {'observation': observation,
-                      # 默认候选集为整个物品集合
+                      # Use the full item set as the default candidate set.
                       'candidates': self.env.get_candidate_info(observation),
                       'epsilon': epsilon,
                       'do_explore': do_explore,

@@ -4,7 +4,7 @@ import numpy as np
 
 from utils import get_regularization
 
-# 各种模型的基类
+# Base class for the models.
 class BaseModel(nn.Module):
 
     #############################

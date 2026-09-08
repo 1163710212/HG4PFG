@@ -215,7 +215,7 @@ class PPO(BaseOnPolicyRLAgent):
         do_explore = policy_args[1]
         is_train = policy_args[2]
         input_dict = {'observation': observation,
-                      # 默认候选集为整个物品集合
+                      # Use the full item set as the default candidate set.
                       'candidates': self.env.get_candidate_info(observation),
                       'epsilon': epsilon,
                       'do_explore': do_explore,
